@@ -98,8 +98,6 @@ FBX_ASCII_TEMPLETE = """
     """
 
 
-
-
 class MeshData(rd.MeshFormat):
     indexOffset = 0
     name = ""
@@ -192,65 +190,11 @@ def unpack(controller, attr, idx):
     return unpackData(attr.format, data)
 
 
-def export_fbx(pyrenderdoc,controller):
-    manager = pyrenderdoc.Extensions()
-        
-    state = controller.GetPipelineState()
-
-    # Get the index & vertex buffers, and fixed vertex inputs
-    ib = state.GetIBuffer()
-    vbs = state.GetVBuffers()
-    attrs = state.GetVertexInputs()
-
-    # NOTE current draw draw
-    draw = pyrenderdoc.CurSelectedDrawcall()
-    if not draw:
-        manager.ErrorDialog(
-            "Please pick a valid draw call in the Event Browser.", "Error"
-        )
-        return
-
-    meshInputs = []
-    for attr in attrs:
-        if not attr.used:
-            continue
-        elif attr.perInstance:
-            # We don't handle instance attributes
-            manager.ErrorDialog("Instanced properties are not supported!", "Error")
-            return
-
-        meshInput = MeshData()
-        meshInput.indexResourceId = ib.resourceId
-        meshInput.indexByteOffset = ib.byteOffset
-        meshInput.indexByteStride = draw.indexByteWidth
-        meshInput.baseVertex = draw.baseVertex
-        meshInput.indexOffset = draw.indexOffset
-        meshInput.numIndices = draw.numIndices
-
-        # If the draw doesn't use an index buffer, don't use it even if bound
-        if not (draw.flags & rd.DrawFlags.Indexed):
-            meshInput.indexResourceId = rd.ResourceId.Null()
-
-        # The total offset is the attribute offset from the base of the vertex
-        meshInput.vertexByteOffset = (
-            attr.byteOffset
-            + vbs[attr.vertexBuffer].byteOffset
-            + draw.vertexOffset * vbs[attr.vertexBuffer].byteStride
-        )
-        meshInput.format = attr.format
-        meshInput.vertexResourceId = vbs[attr.vertexBuffer].resourceId
-        meshInput.vertexByteStride = vbs[attr.vertexBuffer].byteStride
-        meshInput.name = attr.name
-
-        meshInputs.append(meshInput)
+def export_fbx(save_path, meshInputs, controller):
 
     indices = getIndices(controller, meshInputs[0])
     if not indices:
-        manager.ErrorDialog("Current Draw Call lack of Vertex. ", "Error")
-        return
-
-    save_path = manager.SaveFileName("Save FBX File", "", "*.fbx")
-    if not save_path:
+        # manager.ErrorDialog("Current Draw Call lack of Vertex. ", "Error")
         return
 
     save_name = os.path.basename(os.path.splitext(save_path)[0])
@@ -429,7 +373,69 @@ def export_fbx(pyrenderdoc,controller):
     with open(save_path, "w") as f:
         f.write(dedent(fbx).strip())
 
-    # manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")
+def prepare_export(pyrenderdoc, data):
+    manager = pyrenderdoc.Extensions()
+    if not pyrenderdoc.HasMeshPreview():
+        manager.ErrorDialog("No preview mesh!", "Error")
+        return
+
+    manager = pyrenderdoc.Extensions()
+
+    state = pyrenderdoc.CurPipelineState()
+
+    # Get the index & vertex buffers, and fixed vertex inputs
+    ib = state.GetIBuffer()
+    vbs = state.GetVBuffers()
+    attrs = state.GetVertexInputs()
+
+    # NOTE current draw draw
+    draw = pyrenderdoc.CurSelectedDrawcall()
+    if not draw:
+        msg = "Please pick a valid draw call in the Event Browser."
+        manager.ErrorDialog(msg, "Error")
+        return
+
+    meshInputs = []
+    for attr in attrs:
+        if not attr.used:
+            continue
+        elif attr.perInstance:
+            # We don't handle instance attributes
+            manager.ErrorDialog("Instanced properties are not supported!", "Error")
+            return
+
+        meshInput = MeshData()
+        meshInput.indexResourceId = ib.resourceId
+        meshInput.indexByteOffset = ib.byteOffset
+        meshInput.indexByteStride = draw.indexByteWidth
+        meshInput.baseVertex = draw.baseVertex
+        meshInput.indexOffset = draw.indexOffset
+        meshInput.numIndices = draw.numIndices
+
+        # If the draw doesn't use an index buffer, don't use it even if bound
+        if not (draw.flags & rd.DrawFlags.Indexed):
+            meshInput.indexResourceId = rd.ResourceId.Null()
+
+        # The total offset is the attribute offset from the base of the vertex
+        meshInput.vertexByteOffset = (
+            attr.byteOffset
+            + vbs[attr.vertexBuffer].byteOffset
+            + draw.vertexOffset * vbs[attr.vertexBuffer].byteStride
+        )
+        meshInput.format = attr.format
+        meshInput.vertexResourceId = vbs[attr.vertexBuffer].resourceId
+        meshInput.vertexByteStride = vbs[attr.vertexBuffer].byteStride
+        meshInput.name = attr.name
+
+        meshInputs.append(meshInput)
+
+    save_path = manager.SaveFileName("Save FBX File", "", "*.fbx")
+    if not save_path:
+        return
+
+    pyrenderdoc.Replay().BlockInvoke(partial(export_fbx, save_path, meshInputs))
+    manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")
+    os.startfile(os.path.dirname(save_path))
 
 
 def register(version, pyrenderdoc):
@@ -437,9 +443,7 @@ def register(version, pyrenderdoc):
     # pyrenderdoc is the CaptureContext handle, the same as the global available in the python shell
     print("Registering FBX Mesh Exporter extension for RenderDoc {}".format(version))
     pyrenderdoc.Extensions().RegisterPanelMenu(
-        qrenderdoc.PanelMenu.MeshPreview,
-        ["Export FBX Mesh"],
-        lambda pyrenderdoc, data: pyrenderdoc.Replay().BlockInvoke(partial(export_fbx,pyrenderdoc)),
+        qrenderdoc.PanelMenu.MeshPreview, ["Export FBX Mesh"], prepare_export
     )
 
 

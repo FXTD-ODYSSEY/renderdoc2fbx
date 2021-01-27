@@ -223,8 +223,10 @@ def test(controller):
 
     meshInputs = []
     for attr in attrs:
-        # We don't handle instance attributes
-        if attr.perInstance:
+        if not attr.used:
+            continue
+        elif attr.perInstance:
+            # We don't handle instance attributes
             manager.ErrorDialog("Instanced properties are not supported!", "Error")
             return
 

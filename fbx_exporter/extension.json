@@ -1,0 +1,9 @@
+{
+    "extension_api": 1,
+    "name": "FBX Mesh Exporter",
+    "version": "1.0",
+    "minimum_renderdoc": "1.6",
+    "description": "Export mesh to FBX format",
+    "author": "timmyliang <820472580@qq.com>",
+    "url": "https://github.com/FXTD-ODYSSEY/renderdoc2fbx"
+}

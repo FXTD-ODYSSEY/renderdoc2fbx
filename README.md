@@ -1,7 +1,7 @@
 # renderdoc2fbx
 renderdoc python extension for exporting fbx data
 
-## Usage
+## Installation
 
 copy `fbx_exporter` folder to `%appdata%\qrenderdoc\extensions`
 
@@ -18,6 +18,18 @@ Export ASCII FBX File Support
 + **VertexColor**
 
 ![FBX](image/01.png)
+
+## Usage
+
+make sure you copy the extension to the `%appdata%\qrenderdoc\extensions` directory
+
+launch `renderdoc` and open the `Extension Manager`
+
+![FBX](image/02.png)
+
+then go to the Mesh Viewer click the extension icon menu to export the current data as the FBX file.
+
+![FBX](image/03.png)
 
 ## Notice 
 

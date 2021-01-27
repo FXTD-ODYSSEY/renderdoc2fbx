@@ -16,27 +16,15 @@ import os
 import json
 import struct
 from textwrap import dedent
+from functools import partial
 from collections import defaultdict, OrderedDict
+
+import renderdoc as rd
+import qrenderdoc
 
 FBX_ASCII_TEMPLETE = """
     ; FBX 7.3.0 project file
     ; ----------------------------------------------------
-
-    FBXHeaderExtension:  {
-        FBXHeaderVersion: 1003
-        FBXVersion: 7300
-        CreationTimeStamp:  {
-            Version: 1000
-            Year: 2021
-            Month: 1
-            Day: 26
-            Hour: 21
-            Minute: 4
-            Second: 59
-            Millisecond: 682
-        }
-    }
-
 
     ; Object definitions
     ;------------------------------------------------------------------
@@ -109,8 +97,7 @@ FBX_ASCII_TEMPLETE = """
 
     """
 
-rd = renderdoc
-manager = pyrenderdoc.Extensions()
+
 
 
 class MeshData(rd.MeshFormat):
@@ -205,7 +192,9 @@ def unpack(controller, attr, idx):
     return unpackData(attr.format, data)
 
 
-def test(controller):
+def export_fbx(pyrenderdoc,controller):
+    manager = pyrenderdoc.Extensions()
+        
     state = controller.GetPipelineState()
 
     # Get the index & vertex buffers, and fixed vertex inputs
@@ -357,7 +346,11 @@ def test(controller):
     LayerElementColorInsert = ""
     has_color = vertex_data.get("COLOR")
     if has_color:
-        colors = [str(v) if i%4 else "1" for values in value_dict["COLOR"] for i,v in enumerate(values,1)]
+        colors = [
+            str(v) if i % 4 else "1"
+            for values in value_dict["COLOR"]
+            for i, v in enumerate(values, 1)
+        ]
 
         LayerElementColor = """
             LayerElementColor: 0 {
@@ -407,7 +400,7 @@ def test(controller):
         """ % {
             "uvs": ",".join(uvs),
             "uvs_num": len(uvs),
-            "uvs_indices":idx_data,
+            "uvs_indices": idx_data,
             "uvs_indices_num": idx_len,
         }
 
@@ -427,7 +420,7 @@ def test(controller):
             "LayerElementColor": LayerElementColor,
             "LayerElementColorInsert": LayerElementColorInsert,
             "LayerElementUV": LayerElementUV,
-            "LayerElementUVInsert": LayerElementUVInsert
+            "LayerElementUVInsert": LayerElementUVInsert,
         }
     )
 
@@ -435,10 +428,20 @@ def test(controller):
 
     with open(save_path, "w") as f:
         f.write(dedent(fbx).strip())
-        # json.dump(value_dict,f,indent=4)
 
-    # print(json.dumps(value_dict))
     # manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")
 
 
-pyrenderdoc.Replay().BlockInvoke(test)
+def register(version, pyrenderdoc):
+    # version is the RenderDoc Major.Minor version as a string, such as "1.2"
+    # pyrenderdoc is the CaptureContext handle, the same as the global available in the python shell
+    print("Registering FBX Mesh Exporter extension for RenderDoc {}".format(version))
+    pyrenderdoc.Extensions().RegisterPanelMenu(
+        qrenderdoc.PanelMenu.MeshPreview,
+        ["Export FBX Mesh"],
+        lambda pyrenderdoc, data: pyrenderdoc.Replay().BlockInvoke(partial(export_fbx,pyrenderdoc)),
+    )
+
+
+def unregister():
+    print("Unregistrating FBX Mesh Exporter extension")

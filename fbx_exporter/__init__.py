@@ -281,6 +281,8 @@ def test(controller):
     polygons = [idx for idx in idx_dict["POSITION"]]
     min_poly = min(polygons)
     idx_list = [str(idx - min_poly) for idx in idx_dict["POSITION"]]
+    idx_data = ",".join(idx_list)
+    idx_len = len(idx_list)
 
     ARGS = {"model_name": save_name}
     vertices = [str(v) for values in vertex_data["POSITION"].values() for v in values]
@@ -299,7 +301,7 @@ def test(controller):
     LayerElementNormalInsert = ""
     has_normal = vertex_data.get("NORMAL")
     if has_normal:
-        normals = [str(v) for values in vertex_data["NORMAL"].values() for v in values]
+        normals = [str(v) for values in value_dict["NORMAL"] for v in values]
 
         LayerElementNormal = """
             LayerElementNormal: 0 {
@@ -353,7 +355,7 @@ def test(controller):
     LayerElementColorInsert = ""
     has_color = vertex_data.get("COLOR")
     if has_color:
-        colors = [str(v) for values in value_dict["COLOR"] for v in values]
+        colors = [str(v) if i%4 else "1" for values in value_dict["COLOR"] for i,v in enumerate(values,1)]
 
         LayerElementColor = """
             LayerElementColor: 0 {
@@ -371,8 +373,8 @@ def test(controller):
         """ % {
             "colors": ",".join(colors),
             "colors_num": len(colors),
-            "colors_indices": ",".join(idx_list),
-            "colors_indices_num": len(idx_list),
+            "colors_indices": ",".join([str(i) for i in range(idx_len)]),
+            "colors_indices_num": idx_len,
         }
         LayerElementColorInsert = """
             LayerElement:  {
@@ -403,8 +405,8 @@ def test(controller):
         """ % {
             "uvs": ",".join(uvs),
             "uvs_num": len(uvs),
-            "uvs_indices": ",".join(idx_list),
-            "uvs_indices_num": len(idx_list),
+            "uvs_indices":idx_data,
+            "uvs_indices_num": idx_len,
         }
 
         LayerElementUVInsert = """
@@ -431,9 +433,10 @@ def test(controller):
 
     with open(save_path, "w") as f:
         f.write(dedent(fbx).strip())
+        # json.dump(value_dict,f,indent=4)
 
-    # print(json.dumps(data))
-    manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")
+    # print(json.dumps(value_dict))
+    # manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")
 
 
 pyrenderdoc.Replay().BlockInvoke(test)

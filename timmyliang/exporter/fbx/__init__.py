@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 FBX Exporter
+- [ ] multiprocess speed up
+- [ ] progress bar
+- [ ] save the user input
 """
 
 from __future__ import division
@@ -21,6 +24,8 @@ from collections import defaultdict, OrderedDict
 
 import renderdoc as rd
 import qrenderdoc
+
+from .query_dialog import QueryDialog
 
 FBX_ASCII_TEMPLETE = """
     ; FBX 7.3.0 project file
@@ -190,7 +195,7 @@ def unpack(controller, attr, idx):
     return unpackData(attr.format, data)
 
 
-def export_fbx(save_path, meshInputs, controller):
+def export_fbx(save_path, mapper, meshInputs, controller):
 
     indices = getIndices(controller, meshInputs[0])
     if not indices:
@@ -213,30 +218,39 @@ def export_fbx(save_path, meshInputs, controller):
 
     # print(json.dumps(vertex_data))
 
-    polygons = [idx for idx in idx_dict["POSITION"]]
+    POSITION = mapper.get("POSITION")
+    NORMAL = mapper.get("NORMAL")
+    TANGENT = mapper.get("TANGENT")
+    COLOR = mapper.get("COLOR")
+    UV = mapper.get("UV")
+
+    polygons = [idx for idx in idx_dict[POSITION]]
+    if not polygons:
+        return
     min_poly = min(polygons)
-    idx_list = [str(idx - min_poly) for idx in idx_dict["POSITION"]]
+    idx_list = [str(idx - min_poly) for idx in idx_dict[POSITION]]
     idx_data = ",".join(idx_list)
     idx_len = len(idx_list)
 
     ARGS = {"model_name": save_name}
-    vertices = [str(v) for values in vertex_data["POSITION"].values() for v in values]
+    vertices = [str(v) for values in vertex_data[POSITION].values() for v in values]
     ARGS["vertices"] = ",".join(vertices)
     ARGS["vertices_num"] = len(vertices)
 
     # NOTE https://www.codenong.com/cs105411312/
     polygons = [
         str(idx - min_poly) if i % 3 else str(-(idx - min_poly + 1))
-        for i, idx in enumerate(idx_dict["POSITION"], 1)
+        for i, idx in enumerate(idx_dict[POSITION], 1)
     ]
     ARGS["polygons"] = ",".join(polygons)
     ARGS["polygons_num"] = len(polygons)
 
     LayerElementNormal = ""
     LayerElementNormalInsert = ""
-    has_normal = vertex_data.get("NORMAL")
+    has_normal = vertex_data.get(NORMAL)
     if has_normal:
-        normals = [str(v) for values in value_dict["NORMAL"] for v in values]
+        # NOTE FBX_ASCII only support 3 dimension
+        normals = [str(v) for values in value_dict[NORMAL] for v in values[:3]]
 
         LayerElementNormal = """
             LayerElementNormal: 0 {
@@ -261,9 +275,9 @@ def export_fbx(save_path, meshInputs, controller):
 
     LayerElementTangent = ""
     LayerElementTangentInsert = ""
-    has_tangent = vertex_data.get("TANGENT")
+    has_tangent = vertex_data.get(TANGENT)
     if has_tangent:
-        tangents = [str(v) for values in value_dict["TANGENT"] for v in values]
+        tangents = [str(v) for values in value_dict[TANGENT] for v in values[:3]]
         LayerElementTangent = """
             LayerElementTangent: 0 {
                 Version: 101
@@ -288,11 +302,11 @@ def export_fbx(save_path, meshInputs, controller):
 
     LayerElementColor = ""
     LayerElementColorInsert = ""
-    has_color = vertex_data.get("COLOR")
+    has_color = vertex_data.get(COLOR)
     if has_color:
         colors = [
             str(v) if i % 4 else "1"
-            for values in value_dict["COLOR"]
+            for values in value_dict[COLOR]
             for i, v in enumerate(values, 1)
         ]
 
@@ -324,9 +338,9 @@ def export_fbx(save_path, meshInputs, controller):
 
     LayerElementUV = ""
     LayerElementUVInsert = ""
-    has_uv = vertex_data.get("TEXCOORD0")
+    has_uv = vertex_data.get(UV)
     if has_uv:
-        uvs = [str(v) for values in vertex_data["TEXCOORD0"].values() for v in values]
+        uvs = [str(v) for values in vertex_data[UV].values() for v in values]
 
         LayerElementUV = """
             LayerElementUV: 0 {
@@ -373,13 +387,18 @@ def export_fbx(save_path, meshInputs, controller):
     with open(save_path, "w") as f:
         f.write(dedent(fbx).strip())
 
+
 def prepare_export(pyrenderdoc, data):
     manager = pyrenderdoc.Extensions()
     if not pyrenderdoc.HasMeshPreview():
         manager.ErrorDialog("No preview mesh!", "Error")
         return
 
-    manager = pyrenderdoc.Extensions()
+    mqt = manager.GetMiniQtHelper()
+    dialog = QueryDialog(mqt)
+    # NOTE get input attribute
+    if not mqt.ShowWidgetAsDialog(dialog.init_ui()):
+        return
 
     state = pyrenderdoc.CurPipelineState()
 
@@ -433,7 +452,9 @@ def prepare_export(pyrenderdoc, data):
     if not save_path:
         return
 
-    pyrenderdoc.Replay().BlockInvoke(partial(export_fbx, save_path, meshInputs))
+    pyrenderdoc.Replay().BlockInvoke(
+        partial(export_fbx, save_path, dialog.mapper, meshInputs)
+    )
     manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")
     os.startfile(os.path.dirname(save_path))
 

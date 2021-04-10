@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+- [x] save the user input | using QSettings
 
 """
 
@@ -11,10 +12,12 @@ __author__ = "timmyliang"
 __email__ = "820472580@qq.com"
 __date__ = "2021-04-09 20:39:53"
 
+from functools import partial
 from PySide2 import QtWidgets, QtCore, QtGui
 
 # manager = pyrenderdoc.Extensions()
 # mqt = manager.GetMiniQtHelper()
+
 
 class QueryDialog(object):
 
@@ -34,9 +37,10 @@ class QueryDialog(object):
 
     def __init__(self, mqt):
         self.mqt = mqt
+        name = "%s.ini" % self.__class__.__name__
+        self.settings = QtCore.QSettings(name, QtCore.QSettings.IniFormat)
 
     def template_select(self, context, widget, text):
-        # TODO load last selection
         config = {}
         if text == "unity":
             config = {
@@ -56,7 +60,9 @@ class QueryDialog(object):
             }
 
         for name, input_widget in self.button_dict.items():
-            self.mqt.SetWidgetText(input_widget.edit, config.get(name, ""))
+            value = config.get(name, "")
+            self.settings.setValue(name, value)
+            self.mqt.SetWidgetText(input_widget.edit, value)
 
     def init_ui(self):
         self.widget = self.mqt.CreateToplevelWidget(self.title)
@@ -77,6 +83,10 @@ class QueryDialog(object):
             w = self.input_widget(label, name)
             self.button_dict[name] = w
             self.mqt.AddWidget(self.widget, w)
+            # NOTE load settings
+            text = self.settings.value(name, "")
+            if text and text != name:
+                self.mqt.SetWidgetText(w.edit, text)
 
         button_container = self.mqt.CreateHorizontalContainer()
         ok_button = self.mqt.CreateButton(self.accept)
@@ -98,10 +108,13 @@ class QueryDialog(object):
 
         self.mqt.CloseCurrentDialog(True)
 
+    def textChange(self, key, c, w, text):
+        self.settings.setValue(key, text)
+
     def input_widget(self, text, edit_text="", type=""):
         container = self.mqt.CreateHorizontalContainer()
         label = self.mqt.CreateLabel()
-        edit = self.mqt.CreateTextBox(True, lambda *args: None)
+        edit = self.mqt.CreateTextBox(True, partial(self.textChange, edit_text))
 
         self.mqt.SetWidgetText(label, text)
         self.mqt.SetWidgetText(edit, edit_text)

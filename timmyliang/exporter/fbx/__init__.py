@@ -3,7 +3,6 @@
 FBX Exporter
 - [ ] multiprocess speed up
 - [ ] progress bar
-- [ ] save the user input
 """
 
 from __future__ import division
@@ -455,8 +454,11 @@ def prepare_export(pyrenderdoc, data):
     pyrenderdoc.Replay().BlockInvoke(
         partial(export_fbx, save_path, dialog.mapper, meshInputs)
     )
-    manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")
-    os.startfile(os.path.dirname(save_path))
+    if os.path.exists(save_path):
+        manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")
+        os.startfile(os.path.dirname(save_path))
+    else:
+        manager.MessageDialog("FBX Ouput Fail\nPlease Check the attribute input", "Error!~")
 
 
 def register(version, pyrenderdoc):

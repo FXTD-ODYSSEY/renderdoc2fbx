@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 FBX Exporter
-- [ ] multiprocess speed up
-- [ ] progress bar
 """
 
 from __future__ import division
@@ -15,11 +13,14 @@ __date__ = "2021-01-26 20:44:17"
 
 
 import os
+import time
 import json
 import struct
+import inspect
 from textwrap import dedent
 from functools import partial
 from collections import defaultdict, OrderedDict
+from threading import Thread
 
 import renderdoc as rd
 import qrenderdoc
@@ -202,12 +203,13 @@ def export_fbx(save_path, mapper, meshInputs, controller):
         return
 
     save_name = os.path.basename(os.path.splitext(save_path)[0])
+    curr = time.time()
 
     # We'll decode the first three indices making up a triangle
     idx_dict = defaultdict(list)
     value_dict = defaultdict(list)
     vertex_data = defaultdict(OrderedDict)
-    for i, idx in enumerate(indices):
+    for idx in indices:
         for attr in meshInputs:
             value = unpack(controller, attr, idx)
             idx_dict[attr.name].append(idx)
@@ -215,7 +217,21 @@ def export_fbx(save_path, mapper, meshInputs, controller):
             if idx not in vertex_data[attr.name]:
                 vertex_data[attr.name][idx] = value
 
+    print("elapsed time unpack: %s" % (time.time() - curr))
+
     # print(json.dumps(vertex_data))
+
+    ARGS = {
+        "model_name": save_name,
+        "LayerElementNormal": "",
+        "LayerElementNormalInsert": "",
+        "LayerElementTangent": "",
+        "LayerElementTangentInsert": "",
+        "LayerElementColor": "",
+        "LayerElementColorInsert": "",
+        "LayerElementUV": "",
+        "LayerElementUVInsert": "",
+    }
 
     POSITION = mapper.get("POSITION")
     NORMAL = mapper.get("NORMAL")
@@ -231,155 +247,196 @@ def export_fbx(save_path, mapper, meshInputs, controller):
     idx_data = ",".join(idx_list)
     idx_len = len(idx_list)
 
-    ARGS = {"model_name": save_name}
-    vertices = [str(v) for values in vertex_data[POSITION].values() for v in values]
-    ARGS["vertices"] = ",".join(vertices)
-    ARGS["vertices_num"] = len(vertices)
+    class ProcessHandler(object):
+        def __init__(self, config):
+            self.__dict__.update(config)
 
-    # NOTE https://www.codenong.com/cs105411312/
-    polygons = [
-        str(idx - min_poly) if i % 3 else str(-(idx - min_poly + 1))
-        for i, idx in enumerate(idx_dict[POSITION], 1)
-    ]
-    ARGS["polygons"] = ",".join(polygons)
-    ARGS["polygons_num"] = len(polygons)
+        def run(self):
+            curr = time.time()
+            for name, func in inspect.getmembers(self, inspect.isroutine):
+                if name.startswith("run_"):
+                    func()
+            print("elapsed time template: %s" % (time.time() - curr))
 
-    LayerElementNormal = ""
-    LayerElementNormalInsert = ""
-    has_normal = vertex_data.get(NORMAL)
-    if has_normal:
-        # NOTE FBX_ASCII only support 3 dimension
-        normals = [str(v) for values in value_dict[NORMAL] for v in values[:3]]
 
-        LayerElementNormal = """
-            LayerElementNormal: 0 {
-                Version: 101
-                Name: ""
-                MappingInformationType: "ByPolygonVertex"
-                ReferenceInformationType: "Direct"
-                Normals: *%(normals_num)s {
-                    a: %(normals)s
-                } 
+        def run_vertices(self):
+            vertices = [
+                str(v)
+                for values in self.vertex_data[self.POSITION].values()
+                for v in values
+            ]
+            self.ARGS["vertices"] = ",".join(vertices)
+            self.ARGS["vertices_num"] = len(vertices)
+
+        def run_polygons(self):
+            polygons = [
+                str(idx - self.min_poly) if i % 3 else str(-(idx - self.min_poly + 1))
+                for i, idx in enumerate(self.idx_dict[self.POSITION], 1)
+            ]
+            self.ARGS["polygons"] = ",".join(polygons)
+            self.ARGS["polygons_num"] = len(polygons)
+
+        def run_normals(self):
+            if not self.vertex_data.get(self.NORMAL):
+                return
+            # NOTE FBX_ASCII only support 3 dimension
+            normals = [
+                str(v) for values in self.value_dict[self.NORMAL] for v in values[:3]
+            ]
+
+            self.ARGS[
+                "LayerElementNormal"
+            ] = """
+                LayerElementNormal: 0 {
+                    Version: 101
+                    Name: ""
+                    MappingInformationType: "ByPolygonVertex"
+                    ReferenceInformationType: "Direct"
+                    Normals: *%(normals_num)s {
+                        a: %(normals)s
+                    } 
+                }
+            """ % {
+                "normals": ",".join(normals),
+                "normals_num": len(normals),
             }
-        """ % {
-            "normals": ",".join(normals),
-            "normals_num": len(normals),
-        }
-        LayerElementNormalInsert = """
-            LayerElement:  {
-                    Type: "LayerElementNormal"
-                TypedIndex: 0
-            }
-        """
-
-    LayerElementTangent = ""
-    LayerElementTangentInsert = ""
-    has_tangent = vertex_data.get(TANGENT)
-    if has_tangent:
-        tangents = [str(v) for values in value_dict[TANGENT] for v in values[:3]]
-        LayerElementTangent = """
-            LayerElementTangent: 0 {
-                Version: 101
-                Name: "map1"
-                MappingInformationType: "ByPolygonVertex"
-                ReferenceInformationType: "Direct"
-                Tangents: *%(tangents_num)s {
-                    a: %(tangents)s
-                } 
-            }
-        """ % {
-            "tangents": ",".join(tangents),
-            "tangents_num": len(tangents),
-        }
-
-        LayerElementTangentInsert = """
+            self.ARGS[
+                "LayerElementNormalInsert"
+            ] = """
                 LayerElement:  {
-                    Type: "LayerElementTangent"
+                        Type: "LayerElementNormal"
                     TypedIndex: 0
                 }
-        """
+            """
 
-    LayerElementColor = ""
-    LayerElementColorInsert = ""
-    has_color = vertex_data.get(COLOR)
-    if has_color:
-        colors = [
-            str(v) if i % 4 else "1"
-            for values in value_dict[COLOR]
-            for i, v in enumerate(values, 1)
-        ]
-
-        LayerElementColor = """
-            LayerElementColor: 0 {
-                Version: 101
-                Name: "colorSet1"
-                MappingInformationType: "ByPolygonVertex"
-                ReferenceInformationType: "IndexToDirect"
-                Colors: *%(colors_num)s {
-                    a: %(colors)s
-                } 
-                ColorIndex: *%(colors_indices_num)s {
-                    a: %(colors_indices)s
-                } 
+        def run_tangents(self):
+            if not self.vertex_data.get(self.TANGENT):
+                return
+            tangents = [
+                str(v) for values in self.value_dict[self.TANGENT] for v in values[:3]
+            ]
+            self.ARGS[
+                "LayerElementTangent"
+            ] = """
+                LayerElementTangent: 0 {
+                    Version: 101
+                    Name: "map1"
+                    MappingInformationType: "ByPolygonVertex"
+                    ReferenceInformationType: "Direct"
+                    Tangents: *%(tangents_num)s {
+                        a: %(tangents)s
+                    } 
+                }
+            """ % {
+                "tangents": ",".join(tangents),
+                "tangents_num": len(tangents),
             }
-        """ % {
-            "colors": ",".join(colors),
-            "colors_num": len(colors),
-            "colors_indices": ",".join([str(i) for i in range(idx_len)]),
-            "colors_indices_num": idx_len,
-        }
-        LayerElementColorInsert = """
-            LayerElement:  {
-                Type: "LayerElementColor"
-                TypedIndex: 0
+
+            self.ARGS[
+                "LayerElementTangentInsert"
+            ] = """
+                    LayerElement:  {
+                        Type: "LayerElementTangent"
+                        TypedIndex: 0
+                    }
+            """
+
+        def run_color(self):
+            if not self.vertex_data.get(self.COLOR):
+                return
+            colors = [
+                str(v) if i % 4 else "1"
+                for values in self.value_dict[self.COLOR]
+                for i, v in enumerate(values, 1)
+            ]
+
+            self.ARGS[
+                "LayerElementColor"
+            ] = """
+                LayerElementColor: 0 {
+                    Version: 101
+                    Name: "colorSet1"
+                    MappingInformationType: "ByPolygonVertex"
+                    ReferenceInformationType: "IndexToDirect"
+                    Colors: *%(colors_num)s {
+                        a: %(colors)s
+                    } 
+                    ColorIndex: *%(colors_indices_num)s {
+                        a: %(colors_indices)s
+                    } 
+                }
+            """ % {
+                "colors": ",".join(colors),
+                "colors_num": len(colors),
+                "colors_indices": ",".join([str(i) for i in range(self.idx_len)]),
+                "colors_indices_num": self.idx_len,
             }
-        """
+            self.ARGS[
+                "LayerElementColorInsert"
+            ] = """
+                LayerElement:  {
+                    Type: "LayerElementColor"
+                    TypedIndex: 0
+                }
+            """
 
-    LayerElementUV = ""
-    LayerElementUVInsert = ""
-    has_uv = vertex_data.get(UV)
-    if has_uv:
-        uvs = [str(v) for values in vertex_data[UV].values() for v in values]
+        def run_uv(self):
+            if not self.vertex_data.get(self.UV):
+                return
+            uvs = [
+                str(v) for values in self.vertex_data[self.UV].values() for v in values
+            ]
 
-        LayerElementUV = """
-            LayerElementUV: 0 {
-                Version: 101
-                Name: "map1"
-                MappingInformationType: "ByPolygonVertex"
-                ReferenceInformationType: "IndexToDirect"
-                UV: *%(uvs_num)s {
-                    a: %(uvs)s
-                } 
-                UVIndex: *%(uvs_indices_num)s {
-                    a: %(uvs_indices)s
-                } 
+            self.ARGS[
+                "LayerElementUV"
+            ] = """
+                LayerElementUV: 0 {
+                    Version: 101
+                    Name: "map1"
+                    MappingInformationType: "ByPolygonVertex"
+                    ReferenceInformationType: "IndexToDirect"
+                    UV: *%(uvs_num)s {
+                        a: %(uvs)s
+                    } 
+                    UVIndex: *%(uvs_indices_num)s {
+                        a: %(uvs_indices)s
+                    } 
+                }
+            """ % {
+                "uvs": ",".join(uvs),
+                "uvs_num": len(uvs),
+                "uvs_indices": self.idx_data,
+                "uvs_indices_num": self.idx_len,
             }
-        """ % {
-            "uvs": ",".join(uvs),
-            "uvs_num": len(uvs),
-            "uvs_indices": idx_data,
-            "uvs_indices_num": idx_len,
-        }
 
-        LayerElementUVInsert = """
-            LayerElement:  {
-                Type: "LayerElementUV"
-                TypedIndex: 0
-            }
-        """
+            self.ARGS[
+                "LayerElementUVInsert"
+            ] = """
+                LayerElement:  {
+                    Type: "LayerElementUV"
+                    TypedIndex: 0
+                }
+            """
 
-    ARGS.update(
+    handler = ProcessHandler(
         {
-            "LayerElementNormal": LayerElementNormal,
-            "LayerElementNormalInsert": LayerElementNormalInsert,
-            "LayerElementTangent": LayerElementTangent,
-            "LayerElementTangentInsert": LayerElementTangentInsert,
-            "LayerElementColor": LayerElementColor,
-            "LayerElementColorInsert": LayerElementColorInsert,
-            "LayerElementUV": LayerElementUV,
-            "LayerElementUVInsert": LayerElementUVInsert,
+            "POSITION": POSITION,
+            "NORMAL": NORMAL,
+            "TANGENT": TANGENT,
+            "COLOR": COLOR,
+            "UV": UV,
+            "polygons": polygons,
+            "min_poly": min_poly,
+            "idx_list": idx_list,
+            "idx_data": idx_data,
+            "idx_len": idx_len,
+            "ARGS": ARGS,
+            "idx_dict": idx_dict,
+            "value_dict": value_dict,
+            "vertex_data": vertex_data,
         }
     )
+    handler.run()
 
     fbx = FBX_ASCII_TEMPLETE % ARGS
 
@@ -458,7 +515,9 @@ def prepare_export(pyrenderdoc, data):
         manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")
         os.startfile(os.path.dirname(save_path))
     else:
-        manager.MessageDialog("FBX Ouput Fail\nPlease Check the attribute input", "Error!~")
+        manager.MessageDialog(
+            "FBX Ouput Fail\nPlease Check the attribute input", "Error!~"
+        )
 
 
 def register(version, pyrenderdoc):

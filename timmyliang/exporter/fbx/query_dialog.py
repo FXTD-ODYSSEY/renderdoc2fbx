@@ -12,6 +12,8 @@ __author__ = "timmyliang"
 __email__ = "820472580@qq.com"
 __date__ = "2021-04-09 20:39:53"
 
+import os
+import tempfile
 from functools import partial
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -37,10 +39,12 @@ class QueryDialog(object):
 
     def __init__(self, mqt):
         self.mqt = mqt
-        name = "%s.ini" % self.__class__.__name__
-        self.settings = QtCore.QSettings(name, QtCore.QSettings.IniFormat)
+        name = "RenderDoc_%s.ini" % self.__class__.__name__
+        path = os.path.join(tempfile.gettempdir(),name)
+        self.settings = QtCore.QSettings(path, QtCore.QSettings.IniFormat)
 
-    def template_select(self, context, widget, text):
+    def template_select(self, index):
+        text = self.combo.itemText(index)
         config = {}
         if text == "unity":
             config = {
@@ -59,6 +63,7 @@ class QueryDialog(object):
                 "UV": "ATTRIBUTE5",
             }
 
+        self.settings.setValue("Engine", text)
         for name, input_widget in self.button_dict.items():
             value = config.get(name, "")
             self.settings.setValue(name, value)
@@ -70,12 +75,16 @@ class QueryDialog(object):
         # NOTE template option
         container = self.mqt.CreateHorizontalContainer()
         label = self.mqt.CreateLabel()
-        combo = self.mqt.CreateComboBox(False, self.template_select)
-        self.mqt.SetComboOptions(combo, ["unity", "unreal"])
+        
+        self.combo = self.mqt.CreateComboBox(False, lambda:None)
+        self.combo = QtWidgets.QComboBox(self.combo)
+        self.combo.addItems(["unity", "unreal"])
+        self.combo.setCurrentText(self.settings.value("Engine", "unity"))
+        self.combo.currentIndexChanged.connect(self.template_select)
 
         self.mqt.SetWidgetText(label, "template")
         self.mqt.AddWidget(container, label)
-        self.mqt.AddWidget(container, combo)
+        self.mqt.AddWidget(container, self.combo)
         self.mqt.AddWidget(self.widget, container)
 
         self.button_dict = {}
@@ -105,6 +114,8 @@ class QueryDialog(object):
         for name, WIDGET in self.button_dict.items():
             text = self.mqt.GetWidgetText(WIDGET.edit)
             self.mapper[name] = text
+        
+        self.mapper['ENGINE'] = self.combo.currentText()
 
         self.mqt.CloseCurrentDialog(True)
 

@@ -108,29 +108,43 @@ class MeshData(rd.MeshFormat):
     name = ""
 
 
+formatChars = {}
+formatChars[rd.CompType.UInt] = "xBHxIxxxL"
+formatChars[rd.CompType.SInt] = "xbhxixxxl"
+formatChars[rd.CompType.Float] = "xxexfxxxd"  # only 2, 4 and 8 are valid
+
+# These types have identical decodes, but we might post-process them
+formatChars[rd.CompType.UNorm] = formatChars[rd.CompType.UInt]
+formatChars[rd.CompType.UScaled] = formatChars[rd.CompType.UInt]
+formatChars[rd.CompType.SNorm] = formatChars[rd.CompType.SInt]
+formatChars[rd.CompType.SScaled] = formatChars[rd.CompType.SInt]
+
+nested_dict = lambda: defaultdict(nested_dict)
+vertexFormat = nested_dict()
+# https://stackoverflow.com/a/36797651
+# fmt.compCount 234
+# fmt.compByteWidth 124
+for compCount in [2, 3, 4]:
+    for compType in formatChars:
+        for compByteWidth in [1, 2, 4]:
+            vertexFormat[compCount][compType][compByteWidth] = struct.Struct(
+                "%s%s" % (compCount,formatChars[compType][compByteWidth])
+            ).unpack_from
+
+
 # Unpack a tuple of the given format, from the data
 def unpackData(fmt, data):
     # We don't handle 'special' formats - typically bit-packed such as 10:10:10:2
     if fmt.Special():
         raise RuntimeError("Packed formats are not supported!")
 
-    formatChars = {}
-    #                                 012345678
-    formatChars[rd.CompType.UInt] = "xBHxIxxxL"
-    formatChars[rd.CompType.SInt] = "xbhxixxxl"
-    formatChars[rd.CompType.Float] = "xxexfxxxd"  # only 2, 4 and 8 are valid
+    # # We need to fetch compCount components
+    # vertexFormat = "%s%s" % (fmt.compCount,formatChars[fmt.compType][fmt.compByteWidth])
+    # value = struct.unpack_from(vertexFormat, data, 0)
 
-    # These types have identical decodes, but we might post-process them
-    formatChars[rd.CompType.UNorm] = formatChars[rd.CompType.UInt]
-    formatChars[rd.CompType.UScaled] = formatChars[rd.CompType.UInt]
-    formatChars[rd.CompType.SNorm] = formatChars[rd.CompType.SInt]
-    formatChars[rd.CompType.SScaled] = formatChars[rd.CompType.SInt]
-
-    # We need to fetch compCount components
-    vertexFormat = str(fmt.compCount) + formatChars[fmt.compType][fmt.compByteWidth]
-
-    # Unpack the data
-    value = struct.unpack_from(vertexFormat, data, 0)
+    # TODO enhance performance
+    unpack_from = vertexFormat[fmt.compCount][fmt.compType][fmt.compByteWidth]
+    value = unpack_from(data)
 
     # If the format needs post-processing such as normalisation, do that now
     if fmt.compType == rd.CompType.UNorm:
@@ -145,7 +159,7 @@ def unpackData(fmt, data):
 
     # If the format is BGRA, swap the two components
     if fmt.BGRAOrder():
-        value = tuple(value[i] for i in [2, 1, 0, 3])
+        value = tuple(value[i] for i in (2, 1, 0, 3))
 
     return value
 
@@ -209,6 +223,7 @@ def export_fbx(save_path, mapper, meshInputs, controller):
     idx_dict = defaultdict(list)
     value_dict = defaultdict(list)
     vertex_data = defaultdict(OrderedDict)
+
     for idx in indices:
         for attr in meshInputs:
             value = unpack(controller, attr, idx)
@@ -238,6 +253,7 @@ def export_fbx(save_path, mapper, meshInputs, controller):
     TANGENT = mapper.get("TANGENT")
     COLOR = mapper.get("COLOR")
     UV = mapper.get("UV")
+    ENGINE = mapper.get("ENGINE")
 
     polygons = [idx for idx in idx_dict[POSITION]]
     if not polygons:
@@ -257,7 +273,6 @@ def export_fbx(save_path, mapper, meshInputs, controller):
                 if name.startswith("run_"):
                     func()
             print("elapsed time template: %s" % (time.time() - curr))
-
 
         def run_vertices(self):
             vertices = [
@@ -383,8 +398,12 @@ def export_fbx(save_path, mapper, meshInputs, controller):
         def run_uv(self):
             if not self.vertex_data.get(self.UV):
                 return
+
             uvs = [
-                str(v) for values in self.vertex_data[self.UV].values() for v in values
+                # NOTE unreal engine need to flip y axis
+                str(1 - v if i and self.ENGINE == "unreal" else v)
+                for values in self.vertex_data[self.UV].values()
+                for i, v in enumerate(values)
             ]
 
             self.ARGS[
@@ -425,6 +444,7 @@ def export_fbx(save_path, mapper, meshInputs, controller):
             "TANGENT": TANGENT,
             "COLOR": COLOR,
             "UV": UV,
+            "ENGINE": ENGINE,
             "polygons": polygons,
             "min_poly": min_poly,
             "idx_list": idx_list,

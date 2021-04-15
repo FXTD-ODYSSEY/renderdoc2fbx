@@ -360,7 +360,8 @@ def export_fbx(save_path, mapper, meshInputs, controller):
             if not self.vertex_data.get(self.COLOR):
                 return
             colors = [
-                str(v) if i % 4 else "1"
+                # str(v) if i % 4 else "1"
+                str(v) 
                 for values in self.value_dict[self.COLOR]
                 for i, v in enumerate(values, 1)
             ]

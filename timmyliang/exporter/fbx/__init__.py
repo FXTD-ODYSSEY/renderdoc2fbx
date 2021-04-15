@@ -400,8 +400,8 @@ def export_fbx(save_path, mapper, meshInputs, controller):
                 return
 
             uvs = [
-                # NOTE unreal engine need to flip y axis
-                str(1 - v if i and self.ENGINE == "unreal" else v)
+                # NOTE flip y axis
+                str(1 - v if i else v)
                 for values in self.vertex_data[self.UV].values()
                 for i, v in enumerate(values)
             ]

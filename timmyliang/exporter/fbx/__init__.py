@@ -68,16 +68,23 @@ FBX_ASCII_TEMPLETE = """
             } 
             GeometryVersion: 124
             %(LayerElementNormal)s
+            %(LayerElementBiNormal)s
             %(LayerElementTangent)s
             %(LayerElementColor)s
             %(LayerElementUV)s
+            %(LayerElementUV2)s
             Layer: 0 {
                 Version: 100
                 %(LayerElementNormalInsert)s
+                %(LayerElementBiNormalInsert)s
                 %(LayerElementTangentInsert)s
                 %(LayerElementColorInsert)s
                 %(LayerElementUVInsert)s
                 
+            }
+            Layer: 1 {
+                Version: 100
+                %(LayerElementUV2Insert)s
             }
         }
         Model: 2035615390896, "Model::%(model_name)s", "Mesh" {
@@ -240,22 +247,28 @@ def export_fbx(save_path, mapper, meshInputs, controller):
         "model_name": save_name,
         "LayerElementNormal": "",
         "LayerElementNormalInsert": "",
+        "LayerElementBiNormal": "",
+        "LayerElementBiNormalInsert": "",
         "LayerElementTangent": "",
         "LayerElementTangentInsert": "",
         "LayerElementColor": "",
         "LayerElementColorInsert": "",
         "LayerElementUV": "",
         "LayerElementUVInsert": "",
+        "LayerElementUV2": "",
+        "LayerElementUV2Insert": "",
     }
 
     POSITION = mapper.get("POSITION")
     NORMAL = mapper.get("NORMAL")
+    BINORMAL = mapper.get("BINORMAL")
     TANGENT = mapper.get("TANGENT")
     COLOR = mapper.get("COLOR")
     UV = mapper.get("UV")
+    UV2 = mapper.get("UV2")
     ENGINE = mapper.get("ENGINE")
 
-    polygons = [idx for idx in idx_dict[POSITION]]
+    polygons = idx_dict[POSITION]
     if not polygons:
         return
     min_poly = min(polygons)
@@ -284,6 +297,20 @@ def export_fbx(save_path, mapper, meshInputs, controller):
             self.ARGS["vertices_num"] = len(vertices)
 
         def run_polygons(self):
+            polygons = []
+            # temp_list = []
+            # for i, idx in enumerate(self.idx_dict[self.POSITION]):
+            #     if i % 3 == 0:
+            #         temp_list.append(idx - self.min_poly)
+            #     elif i % 3 == 1:
+            #         temp_list.append(idx - self.min_poly)
+            #     elif i % 3 == 2:
+            #         temp_list.append(idx - self.min_poly + 1)
+            #         polygons.append(str(temp_list[1]))
+            #         polygons.append(str(temp_list[0]))
+            #         polygons.append(str(-temp_list[2]))
+            #         temp_list = []
+                
             polygons = [
                 str(idx - self.min_poly) if i % 3 else str(-(idx - self.min_poly + 1))
                 for i, idx in enumerate(self.idx_dict[self.POSITION], 1)
@@ -320,6 +347,46 @@ def export_fbx(save_path, mapper, meshInputs, controller):
             ] = """
                 LayerElement:  {
                         Type: "LayerElementNormal"
+                    TypedIndex: 0
+                }
+            """
+            
+        def run_binormals(self):
+            # print("binormals")
+            # print(self.vertex_data.get(self.BINORMAL))
+            if not self.vertex_data.get(self.BINORMAL):
+                return
+            # NOTE FBX_ASCII only support 3 dimension
+            binormals = [
+                str(-v) for values in self.value_dict[self.BINORMAL] for v in values[:3]
+            ]
+
+            self.ARGS[
+                "LayerElementBiNormal"
+            ] = """
+                LayerElementBinormal: 0 {
+                    Version: 101
+                    Name: "map1"
+                    MappingInformationType: "ByVertice"
+                    ReferenceInformationType: "Direct"
+                    Binormals: *%(binormals_num)s {
+                        a: %(binormals)s
+                    } 
+                    BinormalsW: *%(binormalsW_num)s {
+                        a: %(binormalsW)s
+                    } 
+                }
+            """ % {
+                "binormals": ",".join(binormals),
+                "binormals_num": len(binormals),
+                "binormalsW": ",".join(["1" for i in range(self.idx_len)]),
+                "binormalsW_num": self.idx_len,
+            }
+            self.ARGS[
+                "LayerElementBiNormalInsert"
+            ] = """
+                LayerElement:  {
+                        Type: "LayerElementBinormal"
                     TypedIndex: 0
                 }
             """
@@ -437,14 +504,58 @@ def export_fbx(save_path, mapper, meshInputs, controller):
                     TypedIndex: 0
                 }
             """
+            
+        def run_uv2(self):
+            if not self.vertex_data.get(self.UV2):
+                return
+
+            uvs = [
+                # NOTE flip y axis
+                str(1 - v if i else v)
+                for values in self.vertex_data[self.UV2].values()
+                for i, v in enumerate(values)
+            ]
+
+            self.ARGS[
+                "LayerElementUV2"
+            ] = """
+                LayerElementUV: 1 {
+                    Version: 101
+                    Name: "map2"
+                    MappingInformationType: "ByPolygonVertex"
+                    ReferenceInformationType: "IndexToDirect"
+                    UV: *%(uvs_num)s {
+                        a: %(uvs)s
+                    } 
+                    UVIndex: *%(uvs_indices_num)s {
+                        a: %(uvs_indices)s
+                    } 
+                }
+            """ % {
+                "uvs": ",".join(uvs),
+                "uvs_num": len(uvs),
+                "uvs_indices": self.idx_data,
+                "uvs_indices_num": self.idx_len,
+            }
+
+            self.ARGS[
+                "LayerElementUV2Insert"
+            ] = """
+                LayerElement:  {
+                    Type: "LayerElementUV"
+                    TypedIndex: 1
+                }
+            """
 
     handler = ProcessHandler(
         {
             "POSITION": POSITION,
             "NORMAL": NORMAL,
+            "BINORMAL": BINORMAL,
             "TANGENT": TANGENT,
             "COLOR": COLOR,
             "UV": UV,
+            "UV2": UV2,
             "ENGINE": ENGINE,
             "polygons": polygons,
             "min_poly": min_poly,

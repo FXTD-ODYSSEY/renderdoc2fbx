@@ -30,8 +30,10 @@ class QueryDialog(object):
         "POSITION": space % "Vertex Position",
         "TANGENT": space % "Vertex Tangent",
         "NORMAL": space % "Vertex Normal",
+        "BINORMAL": space % "Vertex BiNormal",
         "COLOR": space % "Vertex Color",
         "UV": space % "UV",
+        "UV2": space % "UV2",
     }
 
     button_dict = {}
@@ -41,6 +43,8 @@ class QueryDialog(object):
         self.mqt = mqt
         name = "RenderDoc_%s.ini" % self.__class__.__name__
         path = os.path.join(tempfile.gettempdir(),name)
+        if not os.path.exists(path):
+            self.template_select(0)
         self.settings = QtCore.QSettings(path, QtCore.QSettings.IniFormat)
 
     def template_select(self, index):
@@ -50,17 +54,21 @@ class QueryDialog(object):
             config = {
                 "POSITION": "POSITION",
                 "TANGENT": "TANGENT",
+                "BINORMAL": "",
                 "NORMAL": "NORMAL",
                 "COLOR": "COLOR",
                 "UV": "TEXCOORD0",
+                "UV2": "TEXCOORD1",
             }
         elif text == "unreal":
             config = {
                 "POSITION": "ATTRIBUTE0",
                 "TANGENT": "ATTRIBUTE1",
+                "BINORMAL": "",
                 "NORMAL": "ATTRIBUTE2",
                 "COLOR": "ATTRIBUTE13",
                 "UV": "ATTRIBUTE5",
+                "UV2": "ATTRIBUTE6",
             }
 
         self.settings.setValue("Engine", text)

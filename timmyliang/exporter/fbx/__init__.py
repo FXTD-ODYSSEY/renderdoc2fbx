@@ -22,6 +22,8 @@ from functools import partial
 from collections import defaultdict, OrderedDict
 from threading import Thread
 
+from PySide2 import QtWidgets, QtCore, QtGui
+
 import renderdoc as rd
 import qrenderdoc
 
@@ -109,137 +111,28 @@ FBX_ASCII_TEMPLETE = """
 
     """
 
+def export_fbx(save_path, mapper, data, attr_list,controller):
 
-class MeshData(rd.MeshFormat):
-    indexOffset = 0
-    name = ""
-
-
-formatChars = {}
-formatChars[rd.CompType.UInt] = "xBHxIxxxL"
-formatChars[rd.CompType.SInt] = "xbhxixxxl"
-formatChars[rd.CompType.Float] = "xxexfxxxd"  # only 2, 4 and 8 are valid
-
-# These types have identical decodes, but we might post-process them
-formatChars[rd.CompType.UNorm] = formatChars[rd.CompType.UInt]
-formatChars[rd.CompType.UScaled] = formatChars[rd.CompType.UInt]
-formatChars[rd.CompType.SNorm] = formatChars[rd.CompType.SInt]
-formatChars[rd.CompType.SScaled] = formatChars[rd.CompType.SInt]
-
-nested_dict = lambda: defaultdict(nested_dict)
-vertexFormat = nested_dict()
-# https://stackoverflow.com/a/36797651
-# fmt.compCount 234
-# fmt.compByteWidth 124
-for compCount in [2, 3, 4]:
-    for compType in formatChars:
-        for compByteWidth in [1, 2, 4]:
-            vertexFormat[compCount][compType][compByteWidth] = struct.Struct(
-                "%s%s" % (compCount,formatChars[compType][compByteWidth])
-            ).unpack_from
-
-
-# Unpack a tuple of the given format, from the data
-def unpackData(fmt, data):
-    # We don't handle 'special' formats - typically bit-packed such as 10:10:10:2
-    if fmt.Special():
-        raise RuntimeError("Packed formats are not supported!")
-
-    # # We need to fetch compCount components
-    # vertexFormat = "%s%s" % (fmt.compCount,formatChars[fmt.compType][fmt.compByteWidth])
-    # value = struct.unpack_from(vertexFormat, data, 0)
-
-    # TODO enhance performance
-    unpack_from = vertexFormat[fmt.compCount][fmt.compType][fmt.compByteWidth]
-    value = unpack_from(data)
-
-    # If the format needs post-processing such as normalisation, do that now
-    if fmt.compType == rd.CompType.UNorm:
-        divisor = float((2 ** (fmt.compByteWidth * 8)) - 1)
-        value = tuple(float(i) / divisor for i in value)
-    elif fmt.compType == rd.CompType.SNorm:
-        maxNeg = -float(2 ** (fmt.compByteWidth * 8)) / 2
-        divisor = float(-(maxNeg - 1))
-        value = tuple(
-            (float(i) if (i == maxNeg) else (float(i) / divisor)) for i in value
-        )
-
-    # If the format is BGRA, swap the two components
-    if fmt.BGRAOrder():
-        value = tuple(value[i] for i in (2, 1, 0, 3))
-
-    return value
-
-
-def getIndices(controller, mesh):
-    # Get the character for the width of index
-    indexFormat = "B"
-    if mesh.indexByteStride == 2:
-        indexFormat = "H"
-    elif mesh.indexByteStride == 4:
-        indexFormat = "I"
-
-    # Duplicate the format by the number of indices
-    indexFormat = str(mesh.numIndices) + indexFormat
-
-    # If we have an index buffer
-    if mesh.indexResourceId != rd.ResourceId.Null():
-        # Fetch the data
-        ibdata = controller.GetBufferData(mesh.indexResourceId, mesh.indexByteOffset, 0)
-
-        # Unpack all the indices, starting from the first index to fetch
-        offset = mesh.indexOffset * mesh.indexByteStride
-        indices = struct.unpack_from(indexFormat, ibdata, offset)
-
-        # Apply the baseVertex offset
-        return [i + mesh.baseVertex for i in indices]
-    else:
-        # With no index buffer, just generate a range
-        return tuple(range(mesh.numIndices))
-
-
-def findChannel(vertexData, keywords):
-    for channel in vertexData:
-        for keyword in keywords:
-            if keyword in channel:
-                return channel
-    return None
-
-
-def unpack(controller, attr, idx):
-    # This is the data we're reading from. This would be good to cache instead of
-    # re-fetching for every attribute for every index
-    offset = attr.vertexByteOffset + attr.vertexByteStride * idx
-    data = controller.GetBufferData(attr.vertexResourceId, offset, 0)
-
-    # Get the value from the data
-    return unpackData(attr.format, data)
-
-
-def export_fbx(save_path, mapper, meshInputs, controller):
-
-    indices = getIndices(controller, meshInputs[0])
-    if not indices:
+    if not data:
         # manager.ErrorDialog("Current Draw Call lack of Vertex. ", "Error")
         return
 
     save_name = os.path.basename(os.path.splitext(save_path)[0])
-    curr = time.time()
+    current = time.time()
 
     # We'll decode the first three indices making up a triangle
-    idx_dict = defaultdict(list)
+    idx_dict = data["IDX"]
     value_dict = defaultdict(list)
     vertex_data = defaultdict(OrderedDict)
 
-    for idx in indices:
-        for attr in meshInputs:
-            value = unpack(controller, attr, idx)
-            idx_dict[attr.name].append(idx)
-            value_dict[attr.name].append(value)
-            if idx not in vertex_data[attr.name]:
-                vertex_data[attr.name][idx] = value
+    for i,idx in enumerate(idx_dict):
+        for attr in attr_list:
+            value = data[attr][i]
+            value_dict[attr].append(value)
+            if idx not in vertex_data[attr]:
+                vertex_data[attr][idx] = value
 
-    print("elapsed time unpack: %s" % (time.time() - curr))
+    print("elapsed time unpack: %s" % (time.time() - current))
 
     # print(json.dumps(vertex_data))
 
@@ -268,11 +161,11 @@ def export_fbx(save_path, mapper, meshInputs, controller):
     UV2 = mapper.get("UV2")
     ENGINE = mapper.get("ENGINE")
 
-    polygons = idx_dict[POSITION]
+    polygons = idx_dict
     if not polygons:
         return
     min_poly = min(polygons)
-    idx_list = [str(idx - min_poly) for idx in idx_dict[POSITION]]
+    idx_list = [str(idx - min_poly) for idx in idx_dict]
     idx_data = ",".join(idx_list)
     idx_len = len(idx_list)
 
@@ -310,10 +203,10 @@ def export_fbx(save_path, mapper, meshInputs, controller):
             #         polygons.append(str(temp_list[0]))
             #         polygons.append(str(-temp_list[2]))
             #         temp_list = []
-                
+
             polygons = [
                 str(idx - self.min_poly) if i % 3 else str(-(idx - self.min_poly + 1))
-                for i, idx in enumerate(self.idx_dict[self.POSITION], 1)
+                for i, idx in enumerate(self.idx_dict, 1)
             ]
             self.ARGS["polygons"] = ",".join(polygons)
             self.ARGS["polygons_num"] = len(polygons)
@@ -350,7 +243,7 @@ def export_fbx(save_path, mapper, meshInputs, controller):
                     TypedIndex: 0
                 }
             """
-            
+
         def run_binormals(self):
             # print("binormals")
             # print(self.vertex_data.get(self.BINORMAL))
@@ -428,7 +321,7 @@ def export_fbx(save_path, mapper, meshInputs, controller):
                 return
             colors = [
                 # str(v) if i % 4 else "1"
-                str(v) 
+                str(v)
                 for values in self.value_dict[self.COLOR]
                 for i, v in enumerate(values, 1)
             ]
@@ -504,7 +397,7 @@ def export_fbx(save_path, mapper, meshInputs, controller):
                     TypedIndex: 0
                 }
             """
-            
+
         def run_uv2(self):
             if not self.vertex_data.get(self.UV2):
                 return
@@ -588,60 +481,41 @@ def prepare_export(pyrenderdoc, data):
     if not mqt.ShowWidgetAsDialog(dialog.init_ui()):
         return
 
-    state = pyrenderdoc.CurPipelineState()
-
-    # Get the index & vertex buffers, and fixed vertex inputs
-    ib = state.GetIBuffer()
-    vbs = state.GetVBuffers()
-    attrs = state.GetVertexInputs()
-
-    # NOTE current draw draw
-    draw = pyrenderdoc.CurSelectedDrawcall()
-    if not draw:
-        msg = "Please pick a valid draw call in the Event Browser."
-        manager.ErrorDialog(msg, "Error")
-        return
-
-    meshInputs = []
-    for attr in attrs:
-        if not attr.used:
-            continue
-        elif attr.perInstance:
-            # We don't handle instance attributes
-            manager.ErrorDialog("Instanced properties are not supported!", "Error")
-            return
-
-        meshInput = MeshData()
-        meshInput.indexResourceId = ib.resourceId
-        meshInput.indexByteOffset = ib.byteOffset
-        meshInput.indexByteStride = draw.indexByteWidth
-        meshInput.baseVertex = draw.baseVertex
-        meshInput.indexOffset = draw.indexOffset
-        meshInput.numIndices = draw.numIndices
-
-        # If the draw doesn't use an index buffer, don't use it even if bound
-        if not (draw.flags & rd.DrawFlags.Indexed):
-            meshInput.indexResourceId = rd.ResourceId.Null()
-
-        # The total offset is the attribute offset from the base of the vertex
-        meshInput.vertexByteOffset = (
-            attr.byteOffset
-            + vbs[attr.vertexBuffer].byteOffset
-            + draw.vertexOffset * vbs[attr.vertexBuffer].byteStride
-        )
-        meshInput.format = attr.format
-        meshInput.vertexResourceId = vbs[attr.vertexBuffer].resourceId
-        meshInput.vertexByteStride = vbs[attr.vertexBuffer].byteStride
-        meshInput.name = attr.name
-
-        meshInputs.append(meshInput)
-
     save_path = manager.SaveFileName("Save FBX File", "", "*.fbx")
     if not save_path:
         return
+    
+    # NOTE Get Data from QTableView
+    main_window = pyrenderdoc.GetMainWindow().Widget()
+    table = main_window.findChild(QtWidgets.QTableView, "vsinData")
 
+    model = table.model()
+    row_count = model.rowCount()
+    rows = range(row_count)
+    columns = range(model.columnCount())
+    
+    data = defaultdict(list)
+    attr_list = set()
+    # TODO progress support
+    for c in columns:
+        head = model.headerData(c, QtCore.Qt.Horizontal)
+        values = [model.data(model.index(r, c)) for r in rows]
+        if "." not in head:
+            data[head] = values
+        else:
+            attr = head.split(".")[0]
+            attr_list.add(attr)
+            data[attr].append(values)
+
+    for attr in attr_list:
+        values_list = data[attr]
+        data[attr] = [
+            [float(values[r]) for values in values_list] for r in rows
+        ]
+
+    data["indices"] = row_count
     pyrenderdoc.Replay().BlockInvoke(
-        partial(export_fbx, save_path, dialog.mapper, meshInputs)
+        partial(export_fbx, save_path, dialog.mapper, data,attr_list)
     )
     if os.path.exists(save_path):
         manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")

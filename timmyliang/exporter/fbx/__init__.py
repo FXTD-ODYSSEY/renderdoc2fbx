@@ -27,7 +27,7 @@ import renderdoc as rd
 import qrenderdoc
 
 from .query_dialog import QueryDialog
-from .progress_dialog import QProgressDialog
+from .progress_dialog import MProgressDialog
 
 FBX_ASCII_TEMPLETE = """
     ; FBX 7.3.0 project file
@@ -490,7 +490,7 @@ def prepare_export(pyrenderdoc, data):
     attr_list = set()
     
     # NOTE progressbar display
-    for _,c in QProgressDialog.loop(columns,status="Collect Mesh Data"):
+    for _,c in MProgressDialog.loop(columns,status="Collect Mesh Data"):
         head = model.headerData(c, QtCore.Qt.Horizontal)
         values = [model.data(model.index(r, c)) for r in rows]
         if "." not in head:
@@ -500,7 +500,7 @@ def prepare_export(pyrenderdoc, data):
             attr_list.add(attr)
             data[attr].append(values)
 
-    for _,attr in QProgressDialog.loop(attr_list,status="Rearrange Mesh Data"):
+    for _,attr in MProgressDialog.loop(attr_list,status="Rearrange Mesh Data"):
         values_list = data[attr]
         data[attr] = [
             [float(values[r]) for values in values_list] for r in rows
@@ -510,6 +510,8 @@ def prepare_export(pyrenderdoc, data):
     pyrenderdoc.Replay().BlockInvoke(
         partial(export_fbx, save_path, dialog.mapper, data,attr_list)
     )
+    
+    
     if os.path.exists(save_path):
         manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")
         os.startfile(os.path.dirname(save_path))

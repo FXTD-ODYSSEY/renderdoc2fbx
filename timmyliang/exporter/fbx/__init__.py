@@ -183,7 +183,7 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
         def run_vertices(self):
             vertices = [
                 str(v)
-                for values in self.vertex_data[self.POSITION].values()
+                for values in self.vertex_data[POSITION].values()
                 for v in values
             ]
             self.ARGS["vertices"] = ",".join(vertices)
@@ -212,11 +212,11 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
             self.ARGS["polygons_num"] = len(polygons)
 
         def run_normals(self):
-            if not self.vertex_data.get(self.NORMAL):
+            if not self.vertex_data.get(NORMAL):
                 return
             # NOTE FBX_ASCII only support 3 dimension
             normals = [
-                str(v) for values in self.value_dict[self.NORMAL] for v in values[:3]
+                str(v) for values in self.value_dict[NORMAL] for v in values[:3]
             ]
 
             self.ARGS[
@@ -247,11 +247,11 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
         def run_binormals(self):
             # print("binormals")
             # print(self.vertex_data.get(self.BINORMAL))
-            if not self.vertex_data.get(self.BINORMAL):
+            if not self.vertex_data.get(BINORMAL):
                 return
             # NOTE FBX_ASCII only support 3 dimension
             binormals = [
-                str(-v) for values in self.value_dict[self.BINORMAL] for v in values[:3]
+                str(-v) for values in self.value_dict[BINORMAL] for v in values[:3]
             ]
 
             self.ARGS[
@@ -285,10 +285,10 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
             """
 
         def run_tangents(self):
-            if not self.vertex_data.get(self.TANGENT):
+            if not self.vertex_data.get(TANGENT):
                 return
             tangents = [
-                str(v) for values in self.value_dict[self.TANGENT] for v in values[:3]
+                str(v) for values in self.value_dict[TANGENT] for v in values[:3]
             ]
             self.ARGS[
                 "LayerElementTangent"
@@ -317,12 +317,12 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
             """
 
         def run_color(self):
-            if not self.vertex_data.get(self.COLOR):
+            if not self.vertex_data.get(COLOR):
                 return
             colors = [
                 # str(v) if i % 4 else "1"
                 str(v)
-                for values in self.value_dict[self.COLOR]
+                for values in self.value_dict[COLOR]
                 for i, v in enumerate(values, 1)
             ]
 
@@ -357,13 +357,13 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
             """
 
         def run_uv(self):
-            if not self.vertex_data.get(self.UV):
+            if not self.vertex_data.get(UV):
                 return
 
             uvs = [
                 # NOTE flip y axis
                 str(1 - v if i else v)
-                for values in self.vertex_data[self.UV].values()
+                for values in self.vertex_data[UV].values()
                 for i, v in enumerate(values)
             ]
 
@@ -399,13 +399,13 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
             """
 
         def run_uv2(self):
-            if not self.vertex_data.get(self.UV2):
+            if not self.vertex_data.get(UV2):
                 return
 
             uvs = [
                 # NOTE flip y axis
                 str(1 - v if i else v)
-                for values in self.vertex_data[self.UV2].values()
+                for values in self.vertex_data[UV2].values()
                 for i, v in enumerate(values)
             ]
 
@@ -442,14 +442,6 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
 
     handler = ProcessHandler(
         {
-            "POSITION": POSITION,
-            "NORMAL": NORMAL,
-            "BINORMAL": BINORMAL,
-            "TANGENT": TANGENT,
-            "COLOR": COLOR,
-            "UV": UV,
-            "UV2": UV2,
-            "ENGINE": ENGINE,
             "polygons": polygons,
             "min_poly": min_poly,
             "idx_list": idx_list,

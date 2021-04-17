@@ -84,8 +84,7 @@ class QueryDialog(object):
         container = self.mqt.CreateHorizontalContainer()
         label = self.mqt.CreateLabel()
         
-        self.combo = self.mqt.CreateComboBox(False, lambda:None)
-        self.combo = QtWidgets.QComboBox(self.combo)
+        self.combo = QtWidgets.QComboBox()
         self.combo.addItems(["unity", "unreal"])
         self.combo.setCurrentText(self.settings.value("Engine", "unity"))
         self.combo.currentIndexChanged.connect(self.template_select)

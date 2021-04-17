@@ -20,7 +20,6 @@ import inspect
 from textwrap import dedent
 from functools import partial
 from collections import defaultdict, OrderedDict
-from threading import Thread
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -28,6 +27,7 @@ import renderdoc as rd
 import qrenderdoc
 
 from .query_dialog import QueryDialog
+from .progress_dialog import QProgressDialog
 
 FBX_ASCII_TEMPLETE = """
     ; FBX 7.3.0 project file
@@ -118,8 +118,7 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
         return
 
     save_name = os.path.basename(os.path.splitext(save_path)[0])
-    current = time.time()
-
+    
     # We'll decode the first three indices making up a triangle
     idx_dict = data["IDX"]
     value_dict = defaultdict(list)
@@ -132,7 +131,6 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
             if idx not in vertex_data[attr]:
                 vertex_data[attr][idx] = value
 
-    print("elapsed time unpack: %s" % (time.time() - current))
 
     # print(json.dumps(vertex_data))
 
@@ -477,7 +475,9 @@ def prepare_export(pyrenderdoc, data):
     if not save_path:
         return
     
-    # NOTE Get Data from QTableView
+    current = time.time()
+
+    # NOTE Get Data from QTableView directly
     main_window = pyrenderdoc.GetMainWindow().Widget()
     table = main_window.findChild(QtWidgets.QTableView, "vsinData")
 
@@ -488,8 +488,9 @@ def prepare_export(pyrenderdoc, data):
     
     data = defaultdict(list)
     attr_list = set()
-    # TODO progress support
-    for c in columns:
+    
+    # NOTE progressbar display
+    for _,c in QProgressDialog.loop(columns,status="Collect Mesh Data"):
         head = model.headerData(c, QtCore.Qt.Horizontal)
         values = [model.data(model.index(r, c)) for r in rows]
         if "." not in head:
@@ -499,13 +500,13 @@ def prepare_export(pyrenderdoc, data):
             attr_list.add(attr)
             data[attr].append(values)
 
-    for attr in attr_list:
+    for _,attr in QProgressDialog.loop(attr_list,status="Rearrange Mesh Data"):
         values_list = data[attr]
         data[attr] = [
             [float(values[r]) for values in values_list] for r in rows
         ]
 
-    data["indices"] = row_count
+    print("elapsed time unpack: %s" % (time.time() - current))
     pyrenderdoc.Replay().BlockInvoke(
         partial(export_fbx, save_path, dialog.mapper, data,attr_list)
     )

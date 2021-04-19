@@ -188,24 +188,26 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
             self.ARGS["vertices_num"] = len(vertices)
 
         def run_polygons(self):
-            polygons = []
-            # temp_list = []
-            # for i, idx in enumerate(self.idx_dict[self.POSITION]):
-            #     if i % 3 == 0:
-            #         temp_list.append(idx - self.min_poly)
-            #     elif i % 3 == 1:
-            #         temp_list.append(idx - self.min_poly)
-            #     elif i % 3 == 2:
-            #         temp_list.append(idx - self.min_poly + 1)
-            #         polygons.append(str(temp_list[1]))
-            #         polygons.append(str(temp_list[0]))
-            #         polygons.append(str(-temp_list[2]))
-            #         temp_list = []
-
-            polygons = [
-                str(idx - self.min_poly) if i % 3 else str(-(idx - self.min_poly + 1))
-                for i, idx in enumerate(self.idx_dict, 1)
-            ]
+            if ENGINE == "unreal":
+                polygons = []
+                temp_list = []
+                for i, idx in enumerate(self.idx_dict):
+                    if i % 3 == 0:
+                        temp_list.append(idx - self.min_poly)
+                    elif i % 3 == 1:
+                        temp_list.append(idx - self.min_poly + 1)
+                    elif i % 3 == 2:
+                        temp_list.append(idx - self.min_poly)
+                        polygons.append(str(temp_list[0]))
+                        polygons.append(str(temp_list[2]))
+                        polygons.append(str(-temp_list[1]))
+                        temp_list = []
+            else:
+                polygons = [
+                    str(idx - self.min_poly) if i % 3 else str(-(idx - self.min_poly + 1))
+                    for i, idx in enumerate(self.idx_dict, 1)
+                ]
+                
             self.ARGS["polygons"] = ",".join(polygons)
             self.ARGS["polygons_num"] = len(polygons)
 
@@ -317,12 +319,28 @@ def export_fbx(save_path, mapper, data, attr_list,controller):
         def run_color(self):
             if not self.vertex_data.get(COLOR):
                 return
-            colors = [
-                # str(v) if i % 4 else "1"
-                str(v)
-                for values in self.value_dict[COLOR]
-                for i, v in enumerate(values, 1)
-            ]
+            
+            if ENGINE == "unreal":
+                colors = []
+                temp_list = []
+                for i, idx in enumerate(self.idx_dict):
+                    if i % 3 == 0:
+                        temp_list.append(idx - self.min_poly)
+                    elif i % 3 == 1:
+                        temp_list.append(idx - self.min_poly)
+                    elif i % 3 == 2:
+                        temp_list.append(idx - self.min_poly)
+                        colors.extend([str(v) for v in self.vertex_data[COLOR][temp_list[0]]])
+                        colors.extend([str(v) for v in self.vertex_data[COLOR][temp_list[2]]])
+                        colors.extend([str(v) for v in self.vertex_data[COLOR][temp_list[1]]])
+                        temp_list = []
+            else:
+                colors = [
+                    # str(v) if i % 4 else "1"
+                    str(v)
+                    for values in self.value_dict[COLOR]
+                    for i, v in enumerate(values, 1)
+                ]
 
             self.ARGS[
                 "LayerElementColor"
@@ -483,13 +501,17 @@ def prepare_export(pyrenderdoc, data):
 
     model = table.model()
     row_count = model.rowCount()
+    column_count = model.columnCount()
     rows = range(row_count)
-    columns = range(model.columnCount())
+    columns = range(column_count)
     
     data = defaultdict(list)
     attr_list = set()
     
-    # NOTE progressbar display
+    # # NOTE progressbar display
+    # pool = QtCore.QThreadPool.globalInstance()
+    # pool.setMaxThreadCount(8)
+    
     for _,c in MProgressDialog.loop(columns,status="Collect Mesh Data"):
         head = model.headerData(c, QtCore.Qt.Horizontal)
         values = [model.data(model.index(r, c)) for r in rows]

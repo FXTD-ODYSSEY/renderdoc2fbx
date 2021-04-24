@@ -27,7 +27,7 @@ class MProgressDialog(QtWidgets.QProgressDialog):
         title="",
     ):
         super(MProgressDialog, self).__init__(parent)
-        self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
+        self.setWindowFlags(self.windowFlags())
         self.setWindowModality(QtCore.Qt.WindowModal)
         self.setWindowTitle(status if title else title)
         bar = QtWidgets.QProgressBar(self)

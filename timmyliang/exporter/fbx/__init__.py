@@ -207,7 +207,7 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
                     else str(-(idx - self.min_poly + 1))
                     for i, idx in enumerate(self.idx_dict, 1)
                 ]
-           
+
             self.ARGS["polygons"] = ",".join(polygons)
             self.ARGS["polygons_num"] = len(polygons)
 
@@ -505,7 +505,7 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
                 uvs_indices = ",".join(uvs_indices)
             else:
                 uvs_indices = self.idx_data
-                
+
             uvs = [
                 # NOTE flip y axis
                 str(1 - v if i else v)
@@ -531,7 +531,7 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
             """ % {
                 "uvs": ",".join(uvs),
                 "uvs_num": len(uvs),
-                "uvs_indices": self.idx_data,
+                "uvs_indices": uvs_indices,
                 "uvs_indices_num": self.idx_len,
             }
 

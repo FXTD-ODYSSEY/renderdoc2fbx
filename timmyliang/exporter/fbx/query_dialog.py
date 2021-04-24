@@ -43,12 +43,12 @@ class QueryDialog(object):
         self.mqt = mqt
         name = "RenderDoc_%s.ini" % self.__class__.__name__
         path = os.path.join(tempfile.gettempdir(),name)
+        self.settings = QtCore.QSettings(path, QtCore.QSettings.IniFormat)
         if not os.path.exists(path):
             self.template_select(0)
-        self.settings = QtCore.QSettings(path, QtCore.QSettings.IniFormat)
 
     def template_select(self, index):
-        text = self.combo.itemText(index)
+        text = self.combo.itemText(index) if hasattr(self,"combo") else "unity"
         config = {}
         if text == "unity":
             config = {

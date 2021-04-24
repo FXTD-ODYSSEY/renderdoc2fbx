@@ -186,34 +186,28 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
             self.ARGS["vertices_num"] = len(vertices)
 
         def run_polygons(self):
-            # if ENGINE == "unreal":
-            #     polygons = []
-            #     indices = []
-            #     for i, idx in enumerate(self.idx_dict):
-            #         if i % 3 == 0:
-            #             indices.append(idx - self.min_poly)
-            #         elif i % 3 == 1:
-            #             indices.append(idx - self.min_poly + 1)
-            #         elif i % 3 == 2:
-            #             indices.append(idx - self.min_poly)
-            #             polygons.append(str(indices[0]))
-            #             polygons.append(str(indices[2]))
-            #             polygons.append(str(-indices[1]))
-            #             indices = []
-            # else:
-            #     polygons = [
-            #         str(idx - self.min_poly)
-            #         if i % 3
-            #         else str(-(idx - self.min_poly + 1))
-            #         for i, idx in enumerate(self.idx_dict, 1)
-            #     ]
-            polygons = [
-                str(idx - self.min_poly)
-                if i % 3
-                else str(-(idx - self.min_poly + 1))
-                for i, idx in enumerate(self.idx_dict, 1)
-            ]
-
+            if ENGINE == "unreal":
+                polygons = []
+                indices = []
+                for i, idx in enumerate(self.idx_dict):
+                    if i % 3 == 0:
+                        indices.append(idx - self.min_poly)
+                    elif i % 3 == 1:
+                        indices.append(idx - self.min_poly + 1)
+                    elif i % 3 == 2:
+                        indices.append(idx - self.min_poly)
+                        polygons.append(str(indices[0]))
+                        polygons.append(str(indices[2]))
+                        polygons.append(str(-indices[1]))
+                        indices = []
+            else:
+                polygons = [
+                    str(idx - self.min_poly)
+                    if i % 3
+                    else str(-(idx - self.min_poly + 1))
+                    for i, idx in enumerate(self.idx_dict, 1)
+                ]
+           
             self.ARGS["polygons"] = ",".join(polygons)
             self.ARGS["polygons_num"] = len(polygons)
 
@@ -221,29 +215,26 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
             if not self.vertex_data.get(NORMAL):
                 return
 
-            # if ENGINE == "unreal":
-            #     normals = []
-            #     indices = []
-            #     for i, idx in enumerate(self.idx_dict):
-            #         if i % 3 == 0:
-            #             indices.append(idx)
-            #         elif i % 3 == 1:
-            #             indices.append(idx)
-            #         elif i % 3 == 2:
-            #             indices.append(idx)
-            #             _normals = self.vertex_data[NORMAL]
-            #             normals.extend([str(v) for v in _normals[indices[0]][:3]])
-            #             normals.extend([str(v) for v in _normals[indices[2]][:3]])
-            #             normals.extend([str(v) for v in _normals[indices[1]][:3]])
-            #             indices = []
-            # else:
-            #     # NOTE FBX_ASCII only support 3 dimension
-            #     normals = [
-            #         str(v) for values in self.value_dict[NORMAL] for v in values[:3]
-            #     ]
-            normals = [
-                str(v) for values in self.value_dict[NORMAL] for v in values[:3]
-            ]
+            if ENGINE == "unreal":
+                normals = []
+                indices = []
+                for i, idx in enumerate(self.idx_dict):
+                    if i % 3 == 0:
+                        indices.append(idx)
+                    elif i % 3 == 1:
+                        indices.append(idx)
+                    elif i % 3 == 2:
+                        indices.append(idx)
+                        _normals = self.vertex_data[NORMAL]
+                        normals.extend([str(v) for v in _normals[indices[0]][:3]])
+                        normals.extend([str(v) for v in _normals[indices[2]][:3]])
+                        normals.extend([str(v) for v in _normals[indices[1]][:3]])
+                        indices = []
+            else:
+                # NOTE FBX_ASCII only support 3 dimension
+                normals = [
+                    str(v) for values in self.value_dict[NORMAL] for v in values[:3]
+                ]
 
             self.ARGS[
                 "LayerElementNormal"
@@ -275,28 +266,25 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
                 return
             # NOTE FBX_ASCII only support 3 dimension
 
-            # if ENGINE == "unreal":
-            #     binormals = []
-            #     indices = []
-            #     for i, idx in enumerate(self.idx_dict):
-            #         if i % 3 == 0:
-            #             indices.append(idx)
-            #         elif i % 3 == 1:
-            #             indices.append(idx)
-            #         elif i % 3 == 2:
-            #             indices.append(idx)
-            #             _binormals = self.vertex_data[BINORMAL]
-            #             binormals.extend([str(v) for v in _binormals[indices[0]][:3]])
-            #             binormals.extend([str(v) for v in _binormals[indices[2]][:3]])
-            #             binormals.extend([str(v) for v in _binormals[indices[1]][:3]])
-            #             indices = []
-            # else:
-            #     binormals = [
-            #         str(-v) for values in self.value_dict[BINORMAL] for v in values[:3]
-            #     ]
-            binormals = [
-                str(-v) for values in self.value_dict[BINORMAL] for v in values[:3]
-            ]
+            if ENGINE == "unreal":
+                binormals = []
+                indices = []
+                for i, idx in enumerate(self.idx_dict):
+                    if i % 3 == 0:
+                        indices.append(idx)
+                    elif i % 3 == 1:
+                        indices.append(idx)
+                    elif i % 3 == 2:
+                        indices.append(idx)
+                        _binormals = self.vertex_data[BINORMAL]
+                        binormals.extend([str(v) for v in _binormals[indices[0]][:3]])
+                        binormals.extend([str(v) for v in _binormals[indices[2]][:3]])
+                        binormals.extend([str(v) for v in _binormals[indices[1]][:3]])
+                        indices = []
+            else:
+                binormals = [
+                    str(-v) for values in self.value_dict[BINORMAL] for v in values[:3]
+                ]
 
             self.ARGS[
                 "LayerElementBiNormal"
@@ -332,28 +320,25 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
             if not self.vertex_data.get(TANGENT):
                 return
 
-            # if ENGINE == "unreal":
-            #     tangents = []
-            #     indices = []
-            #     for i, idx in enumerate(self.idx_dict):
-            #         if i % 3 == 0:
-            #             indices.append(idx)
-            #         elif i % 3 == 1:
-            #             indices.append(idx)
-            #         elif i % 3 == 2:
-            #             indices.append(idx)
-            #             _tangents = self.vertex_data[TANGENT]
-            #             tangents.extend([str(v) for v in _tangents[indices[0]][:3]])
-            #             tangents.extend([str(v) for v in _tangents[indices[2]][:3]])
-            #             tangents.extend([str(v) for v in _tangents[indices[1]][:3]])
-            #             indices = []
-            # else:
-            #     tangents = [
-            #         str(v) for values in self.value_dict[TANGENT] for v in values[:3]
-            #     ]
-            tangents = [
-                str(v) for values in self.value_dict[TANGENT] for v in values[:3]
-            ]
+            if ENGINE == "unreal":
+                tangents = []
+                indices = []
+                for i, idx in enumerate(self.idx_dict):
+                    if i % 3 == 0:
+                        indices.append(idx)
+                    elif i % 3 == 1:
+                        indices.append(idx)
+                    elif i % 3 == 2:
+                        indices.append(idx)
+                        _tangents = self.vertex_data[TANGENT]
+                        tangents.extend([str(v) for v in _tangents[indices[0]][:3]])
+                        tangents.extend([str(v) for v in _tangents[indices[2]][:3]])
+                        tangents.extend([str(v) for v in _tangents[indices[1]][:3]])
+                        indices = []
+            else:
+                tangents = [
+                    str(v) for values in self.value_dict[TANGENT] for v in values[:3]
+                ]
 
             self.ARGS[
                 "LayerElementTangent"
@@ -385,34 +370,28 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
             if not self.vertex_data.get(COLOR):
                 return
 
-            # if ENGINE == "unreal":
-            #     colors = []
-            #     indices = []
-            #     for i, idx in enumerate(self.idx_dict):
-            #         if i % 3 == 0:
-            #             indices.append(idx)
-            #         elif i % 3 == 1:
-            #             indices.append(idx)
-            #         elif i % 3 == 2:
-            #             indices.append(idx)
-            #             _colors = self.vertex_data[COLOR]
-            #             colors.extend([str(v) for v in _colors[indices[0]]])
-            #             colors.extend([str(v) for v in _colors[indices[2]]])
-            #             colors.extend([str(v) for v in _colors[indices[1]]])
-            #             indices = []
-            # else:
-            #     colors = [
-            #         # str(v) if i % 4 else "1"
-            #         str(v)
-            #         for values in self.value_dict[COLOR]
-            #         for i, v in enumerate(values, 1)
-            #     ]
-            colors = [
-                # str(v) if i % 4 else "1"
-                str(v)
-                for values in self.value_dict[COLOR]
-                for i, v in enumerate(values, 1)
-            ]
+            if ENGINE == "unreal":
+                colors = []
+                indices = []
+                for i, idx in enumerate(self.idx_dict):
+                    if i % 3 == 0:
+                        indices.append(idx)
+                    elif i % 3 == 1:
+                        indices.append(idx)
+                    elif i % 3 == 2:
+                        indices.append(idx)
+                        _colors = self.vertex_data[COLOR]
+                        colors.extend([str(v) for v in _colors[indices[0]]])
+                        colors.extend([str(v) for v in _colors[indices[2]]])
+                        colors.extend([str(v) for v in _colors[indices[1]]])
+                        indices = []
+            else:
+                colors = [
+                    # str(v) if i % 4 else "1"
+                    str(v)
+                    for values in self.value_dict[COLOR]
+                    for i, v in enumerate(values, 1)
+                ]
 
             self.ARGS[
                 "LayerElementColor"
@@ -448,21 +427,24 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
             if not self.vertex_data.get(UV):
                 return
 
-            # if ENGINE == "unreal":
-            #     uvs = []
-            #     indices = []
-            #     for i, idx in enumerate(self.idx_dict):
-            #         if i % 3 == 0:
-            #             indices.append(idx)
-            #         elif i % 3 == 1:
-            #             indices.append(idx)
-            #         elif i % 3 == 2:
-            #             indices.append(idx)
-            #             uvs.extend([str(v) for v in self.vertex_data[UV][indices[0]]])
-            #             uvs.extend([str(v) for v in self.vertex_data[UV][indices[2]]])
-            #             uvs.extend([str(v) for v in self.vertex_data[UV][indices[1]]])
-            #             indices = []
-            # else:
+            if ENGINE == "unreal":
+                uvs_indices = []
+                indices = []
+                for i, idx in enumerate(self.idx_list):
+                    if i % 3 == 0:
+                        indices.append(idx)
+                    elif i % 3 == 1:
+                        indices.append(idx)
+                    elif i % 3 == 2:
+                        indices.append(idx)
+                        uvs_indices.append(str(indices[0]))
+                        uvs_indices.append(str(indices[2]))
+                        uvs_indices.append(str(indices[1]))
+                        indices = []
+                uvs_indices = ",".join(uvs_indices)
+            else:
+                uvs_indices = self.idx_data
+
             uvs = [
                 # NOTE flip y axis
                 str(1 - v if i else v)
@@ -488,7 +470,7 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
             """ % {
                 "uvs": ",".join(uvs),
                 "uvs_num": len(uvs),
-                "uvs_indices": self.idx_data,
+                "uvs_indices": uvs_indices,
                 "uvs_indices_num": self.idx_len,
             }
 
@@ -505,21 +487,25 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
             if not self.vertex_data.get(UV2):
                 return
 
-            # if ENGINE == "unreal":
-            #     uvs = []
-            #     indices = []
-            #     for i, idx in enumerate(self.idx_dict):
-            #         if i % 3 == 0:
-            #             indices.append(idx)
-            #         elif i % 3 == 1:
-            #             indices.append(idx)
-            #         elif i % 3 == 2:
-            #             indices.append(idx)
-            #             uvs.extend([str(v) for v in self.vertex_data[UV2][indices[0]]])
-            #             uvs.extend([str(v) for v in self.vertex_data[UV2][indices[2]]])
-            #             uvs.extend([str(v) for v in self.vertex_data[UV2][indices[1]]])
-            #             indices = []
-            # else:
+            uvs_indices = ""
+            if ENGINE == "unreal":
+                uvs_indices = []
+                indices = []
+                for i, idx in enumerate(self.idx_list):
+                    if i % 3 == 0:
+                        indices.append(idx)
+                    elif i % 3 == 1:
+                        indices.append(idx)
+                    elif i % 3 == 2:
+                        indices.append(idx)
+                        uvs_indices.append(str(indices[0]))
+                        uvs_indices.append(str(indices[2]))
+                        uvs_indices.append(str(indices[1]))
+                        indices = []
+                uvs_indices = ",".join(uvs_indices)
+            else:
+                uvs_indices = self.idx_data
+                
             uvs = [
                 # NOTE flip y axis
                 str(1 - v if i else v)

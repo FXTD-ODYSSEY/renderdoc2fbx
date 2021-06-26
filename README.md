@@ -33,6 +33,7 @@ then go to the Mesh Viewer click the extension icon menu to export the current d
 
 ## Notice 
 
-~~Export Large Mesh especially more than 30000 vertices need several seconds~~~~Python extension not efficient enough for that large Mesh. ~~
+~~Export Large Mesh especially more than 30000 vertices need several seconds~~  
+~~Python extension not efficient enough for that large Mesh. ~~
 
 I change the export method which greatly enhance the export performance. 

@@ -55,16 +55,10 @@ class MProgressDialog(QtWidgets.QProgressDialog):
         self.setCancelButtonText(button_text)
         self.setRange(minimum, maximum)
         self.setValue(minimum)
-        self.delay()
-
-    def delay(self):
-        loop = QtCore.QEventLoop()
-        QtCore.QTimer.singleShot(1, loop.quit)
-        loop.exec_()
-
-    def setLabelText(self, text):
-        super(MProgressDialog, self).setLabelText(text)
-        self.delay()
+        
+        # NOTE show the progressbar without blocking
+        self.show()
+        QtWidgets.QApplication.processEvents()
 
     @classmethod
     def loop(cls, seq, **kwargs):

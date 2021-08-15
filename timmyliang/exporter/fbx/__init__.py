@@ -565,6 +565,23 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
         f.write(dedent(fbx).strip())
 
 
+def error_log(func):
+    def wrapper(pyrenderdoc, data):
+        manager = pyrenderdoc.Extensions()
+        try:
+            func(pyrenderdoc, data)
+        except:
+            import traceback
+            traceback.print_exc()
+            
+            manager.MessageDialog(
+                "FBX Ouput Fail\nPlease Check the attribute input", "Error!~"
+            )
+
+    return wrapper
+
+
+@error_log
 def prepare_export(pyrenderdoc, data):
     manager = pyrenderdoc.Extensions()
     if not pyrenderdoc.HasMeshPreview():
@@ -622,10 +639,6 @@ def prepare_export(pyrenderdoc, data):
     if os.path.exists(save_path):
         os.startfile(os.path.dirname(save_path))
         manager.MessageDialog("FBX Ouput Sucessfully", "Congradualtion!~")
-    else:
-        manager.MessageDialog(
-            "FBX Ouput Fail\nPlease Check the attribute input", "Error!~"
-        )
 
 
 def register(version, pyrenderdoc):
@@ -641,9 +654,10 @@ def unregister():
     print("Unregistrating FBX Mesh Exporter extension")
 
 
-# for reload
+# # NOTE for reload plugin
 # import subprocess
 # import qrenderdoc
-# subprocess.call(["cmd","/c",r"E:\tencent_repo\renderdoc2fbx\install.bat"],shell=True)
+# location = r"E:\tencent_repo\renderdoc2fbx\install.bat"
+# subprocess.call(["cmd","/c",location],shell=True)
 # extension = pyrenderdoc.Extensions()
 # extension.LoadExtension("exporter.fbx")

@@ -180,7 +180,7 @@ def export_fbx(save_path, mapper, data, attr_list, controller):
 
         def run_vertices(self):
             vertices = [
-                str(v) for values in self.vertex_data[POSITION].values() for v in values
+                str(v) for values in self.vertex_data[POSITION].values() for v in values[:3]
             ]
             self.ARGS["vertices"] = ",".join(vertices)
             self.ARGS["vertices_num"] = len(vertices)

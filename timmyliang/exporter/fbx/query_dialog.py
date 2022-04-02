@@ -78,7 +78,7 @@ class QueryDialog(object):
             self.mqt.SetWidgetText(input_widget.edit, value)
 
     def init_ui(self):
-        self.widget = self.mqt.CreateToplevelWidget(self.title)
+        self.widget = self.mqt.CreateToplevelWidget(self.title, None)
 
         # NOTE template option
         container = self.mqt.CreateHorizontalContainer()
